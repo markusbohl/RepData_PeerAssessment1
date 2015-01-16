@@ -15,10 +15,14 @@ First, we are loading the activity.csv file into a data frame.
 activity <- read.csv("activity.csv")
 ```
 
-
 Let's take a look at the data frame's structure and how the data might look like:
 ```{r}
 str(activity)
+```
+
+Since `date` is currently regarded as a factor we change its type to `Date`:
+```{r}
+activity$date <- as.Date(activity$date, format="%Y-%m-%d")
 ```
 
 
@@ -118,5 +122,80 @@ sum(is.na(activity$date))
 sum(is.na(activity$interval))
 ```
 
+Strategy for filling NAs: Missing step values (`NAs`) should be filled with the mean value of their particular 5-minute interval.
+
+```{r}
+tempDf <- merge(x = activity, 
+                y = avgStepsPerInterval, 
+                by = "interval", 
+                all.x = TRUE)
+
+# fill NAs with mean of appropriate interval
+tempDf[is.na(tempDf$steps.x),"steps.x"] <- tempDf[is.na(tempDf$steps.x),"steps.y"]
+
+# and rename steps.x to steps
+names(tempDf)[names(tempDf) == "steps.x"] <- "steps"
+
+# finally create dataset equal to the original one but without NAs
+activityWithoutNAs <- tempDf[order(tempDf$date, tempDf$interval), c("steps", "date", "interval")]
+```
+
+```{r}
+str(activityWithoutNAs)
+```
+
+
+
+```{r}
+withNAs <- activity
+withNAs$origDataset <- "with NAs"
+withoutNAs <- activityWithoutNAs
+withoutNAs$origDataset <- "without NAs"
+
+activities <- rbind(withNAs, withoutNAs)
+
+activitiesPerDay <- aggregate(steps ~ origDataset + date, 
+                              data = activities, FUN = "sum", na.rm = FALSE)
+
+aggregate(steps ~ origDataset, data = activitiesPerDay, 
+          FUN = "mean")
+aggregate(steps ~ origDataset, data = activitiesPerDay, 
+          FUN = "median")
+```
+
+
+```{r fig.width=10}
+ggplot(data = activitiesPerDay, aes(x=date, y=steps, fill=origDataset)) + 
+    geom_bar(stat = "identity", position = "dodge")
+```
+
+
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+activitiesOnDays <- activityWithoutNAs
+
+sundays <- format(activitiesOnDays$date, "%w") == 0 
+saturdays <- format(activitiesOnDays$date, "%w") == 6
+
+activitiesOnDays$day <- ifelse(sundays, "weekend", ifelse(saturdays, "weekend", "weekday"))
+
+activitiesOnDays$day <- as.factor(activitiesOnDays$day)
+```
+
+
+```{r}
+avgStepsPerIntervalAndDay <- aggregate(steps ~ day + interval, data = activitiesOnDays, FUN = "mean")
+```
+
+```{r, fig.width=10}
+ggplot(data = avgStepsPerIntervalAndDay, aes(x = interval, y = steps, col = day)) + 
+    geom_line()
+```
+
+```{r}
+ggplot(data = avgStepsPerIntervalAndDay, aes(x = interval, y = steps)) + 
+    geom_line() + facet_wrap(~ day, ncol = 1)
+```
+
