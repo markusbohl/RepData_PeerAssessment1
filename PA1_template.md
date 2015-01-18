@@ -30,6 +30,19 @@ Since `date` is currently regarded as a factor we change its type to `Date`:
 activity$date <- as.Date(activity$date, format="%Y-%m-%d")
 ```
 
+Now, we the date is structured like this:
+
+```r
+str(activity)
+```
+
+```
+## 'data.frame':	17568 obs. of  3 variables:
+##  $ steps   : int  NA NA NA NA NA NA NA NA NA NA ...
+##  $ date    : Date, format: "2012-10-01" "2012-10-01" ...
+##  $ interval: int  0 5 10 15 20 25 30 35 40 45 ...
+```
+
 
 ## What is mean total number of steps taken per day?
 
@@ -82,14 +95,6 @@ summary(totalStepsPerDay)
 ##  Max.   :2012-11-29   Max.   :21194
 ```
 
-The following boxplot gives a good idea about the distribution of total number of steps per day:
-
-
-```r
-boxplot(totalStepsPerDay$steps, ylab = "total number of steps per day")
-```
-
-![plot of chunk unnamed-chunk-8](./PA1_template_files/figure-html/unnamed-chunk-8.png) 
 
 ## What is the average daily activity pattern?
 
@@ -121,10 +126,10 @@ avgStepsPerInterval$interval[maxIndex]
 ```
 ## [1] 835
 ```
-Thus, we can state that the maximum number of steps is 206.2 and happens to be in interval 835.
+Thus, we can state that across all the days in the dataset interval 835 contains the maximum number of steps. Namely 206.2.
 
 
-Finally, an according plot might be generated like this:
+Finally, a corresponding plot might be generated like this (using `ggplot2`):
 
 ```r
 library(ggplot2)
@@ -155,17 +160,7 @@ ggplot(data = avgStepsPerInterval, aes(x = interval, y = steps)) +
 
 ## Imputing missing values
 
-First, let's get an idea of how many values are missing:
-
-```r
-totalNumberOfNAs <- sum(is.na(activity$steps))
-totalNumberOfObservations <- length(activity$steps)
-missingPercentage  <- totalNumberOfNAs/totalNumberOfObservations * 100
-```
-
-2304 out of 17568 values in the given activity dataset are missing which is a percentage of 13.1%.
-
-Neither `date` nor `interval` column do have `NA` values:
+First, let's get an idea which and how many values are missing. Neither `date` nor `interval` column do have `NA` values:
 
 ```r
 sum(is.na(activity$date))
@@ -183,7 +178,17 @@ sum(is.na(activity$interval))
 ## [1] 0
 ```
 
-Strategy for filling NAs: Missing step values (`NAs`) should be filled with the mean value of their particular 5-minute interval.
+Apparently, some `steps` are missing:
+
+```r
+totalNumberOfNAs <- sum(is.na(activity$steps))
+totalNumberOfObservations <- length(activity$steps)
+missingPercentage  <- totalNumberOfNAs/totalNumberOfObservations * 100
+```
+
+2304 out of 17568 values in the given activity dataset are missing which is a percentage of 13.1%.
+
+Secondly, we need a strategy for filling missing step values (`NA`): I have decided to fill in the mean value of steps for that particular 5-minute interval. This allows me to reuse the `avgStepsPerInterval` data frame:
 
 
 ```r
@@ -202,6 +207,7 @@ names(tempDf)[names(tempDf) == "steps.x"] <- "steps"
 activityWithoutNAs <- tempDf[order(tempDf$date, tempDf$interval), c("steps", "date", "interval")]
 ```
 
+This gives us a dataset that is equal to the original dataset...
 
 ```r
 str(activityWithoutNAs)
@@ -213,9 +219,17 @@ str(activityWithoutNAs)
 ##  $ date    : Date, format: "2012-10-01" "2012-10-01" ...
 ##  $ interval: int  0 5 10 15 20 25 30 35 40 45 ...
 ```
+...but without missing data
 
+```r
+sum(is.na(activityWithoutNAs$steps))
+```
 
+```
+## [1] 0
+```
 
+Let's prepare the data for a histogram showing the total number of steps taken each day.
 
 ```r
 withNAs <- activity
@@ -227,7 +241,11 @@ activities <- rbind(withNAs, withoutNAs)
 
 activitiesPerDay <- aggregate(steps ~ origDataset + date, 
                               data = activities, FUN = "sum", na.rm = FALSE)
+```
 
+Furthermore, we need to take a look at mean and median values for total number of steps taken per day.
+
+```r
 aggregate(steps ~ origDataset, data = activitiesPerDay, 
           FUN = "mean")
 ```
@@ -256,43 +274,63 @@ ggplot(data = activitiesPerDay, aes(x=date, y=steps, fill=origDataset)) +
     geom_bar(stat = "identity", position = "dodge")
 ```
 
-![plot of chunk unnamed-chunk-17](./PA1_template_files/figure-html/unnamed-chunk-17.png) 
+![plot of chunk unnamed-chunk-19](./PA1_template_files/figure-html/unnamed-chunk-19.png) 
 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
+To answer this question, we will first create a new dataset (based on the activity-dataset without missing values) that contains a new column `day` which holds one of the two factor values `weekday` or `weekend`.
 
 ```r
 activitiesOnDays <- activityWithoutNAs
 
+# create logical vectors for saturdays and sundays
 sundays <- format(activitiesOnDays$date, "%w") == 0 
 saturdays <- format(activitiesOnDays$date, "%w") == 6
 
+# add new day-column and fill it with string weekend or weekday, respectively.
 activitiesOnDays$day <- ifelse(sundays, "weekend", ifelse(saturdays, "weekend", "weekday"))
 
+# make day a factor-column
 activitiesOnDays$day <- as.factor(activitiesOnDays$day)
 ```
 
-
+Calculate the mean value of steps per weekday/weekend and interval, which we need for the following line graph.
 
 ```r
 avgStepsPerIntervalAndDay <- aggregate(steps ~ day + interval, data = activitiesOnDays, FUN = "mean")
 ```
 
-
-```r
-ggplot(data = avgStepsPerIntervalAndDay, aes(x = interval, y = steps, col = day)) + 
-    geom_line()
-```
-
-![plot of chunk unnamed-chunk-20](./PA1_template_files/figure-html/unnamed-chunk-20.png) 
-
+And here is the plot, comparing average number of steps taken, averaged across all weekday days or weekend days:
 
 ```r
 ggplot(data = avgStepsPerIntervalAndDay, aes(x = interval, y = steps)) + 
     geom_line() + facet_wrap(~ day, ncol = 1)
 ```
 
-![plot of chunk unnamed-chunk-21](./PA1_template_files/figure-html/unnamed-chunk-21.png) 
+![plot of chunk unnamed-chunk-22](./PA1_template_files/figure-html/unnamed-chunk-22.png) 
+As can be seen from the graph, the activity tends to start later on a weekend day and does not reach the maximum of a weekday day. However, on average more steps in total are taken on a weekend day on average:
+
+
+```r
+avgTotalStepsPerWeekday <- sum(avgStepsPerIntervalAndDay[avgStepsPerIntervalAndDay$day == "weekday", ]$steps)
+
+avgTotalStepsPerWeekend <- sum(avgStepsPerIntervalAndDay[avgStepsPerIntervalAndDay$day == "weekend", ]$steps)
+
+avgTotalStepsPerWeekday
+```
+
+```
+## [1] 10256
+```
+
+```r
+avgTotalStepsPerWeekend
+```
+
+```
+## [1] 12202
+```
+
 
