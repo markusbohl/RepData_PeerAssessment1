@@ -229,7 +229,7 @@ sum(is.na(activityWithoutNAs$steps))
 ## [1] 0
 ```
 
-Let's prepare the data for a histogram showing the total number of steps taken each day.
+Let's prepare the data for a histogram showing the total number of steps taken each day. Since I would like to show the differences between the datasets with and without missing values, I create a combined data frame.
 
 ```r
 withNAs <- activity
@@ -239,11 +239,47 @@ withoutNAs$origDataset <- "without NAs"
 
 activities <- rbind(withNAs, withoutNAs)
 
+# calculate total number of steps per date based on original dataset (either with or without missing values).
 activitiesPerDay <- aggregate(steps ~ origDataset + date, 
                               data = activities, FUN = "sum", na.rm = FALSE)
 ```
 
-Furthermore, we need to take a look at mean and median values for total number of steps taken per day.
+With the `activitiesPerDay` dataset, a histogramm can be drawn that shows the differences between data with and without `NAs` side by side.
+
+```r
+ggplot(data = activitiesPerDay, aes(x=date, y=steps, fill=origDataset)) + 
+    geom_bar(stat = "identity", position = "dodge")
+```
+
+![plot of chunk unnamed-chunk-18](./PA1_template_files/figure-html/unnamed-chunk-18.png) 
+
+We can identify a couple of bars where apparently only values from the dataset without missing values do exist. Since all of them seem to have the same y-value, I would assume that on those days the original dataset does not contain even a single measurement. Let's have a look: On which dates do we have missing values?
+
+
+```r
+onlyNAs <- activity[is.na(activity$steps),]
+datesWithNAs <- unique(onlyNAs$date)
+datesWithNAs
+```
+
+```
+## [1] "2012-10-01" "2012-10-08" "2012-11-01" "2012-11-04" "2012-11-09"
+## [6] "2012-11-10" "2012-11-14" "2012-11-30"
+```
+Only for these 8 dates, missing values exist. Nevertheless, let's see if there have been (at least some) correct measurements on these days.
+
+```r
+presentAndMissingValuesAtSameDate <- activity[activity$date %in% datesWithNAs && !is.na(activity$steps), ]
+presentAndMissingValuesAtSameDate
+```
+
+```
+## [1] steps    date     interval
+## <0 rows> (or 0-length row.names)
+```
+No. That is, we have 8 days for which step-measurements miss entirely. This explains why all bars from the dataset without missing values have the same height in the histogramm above. We have filled this dataset with the same average values for the particular intervals.
+
+This should also be noticable when we look at the mean values for the total number of steps taken per day for both datasets. There should be no change by inputing these missing values:
 
 ```r
 aggregate(steps ~ origDataset, data = activitiesPerDay, 
@@ -256,6 +292,8 @@ aggregate(steps ~ origDataset, data = activitiesPerDay,
 ## 2 without NAs 10766
 ```
 
+The median however may change a bit:
+
 ```r
 aggregate(steps ~ origDataset, data = activitiesPerDay, 
           FUN = "median")
@@ -266,16 +304,6 @@ aggregate(steps ~ origDataset, data = activitiesPerDay,
 ## 1    with NAs 10765
 ## 2 without NAs 10766
 ```
-
-
-
-```r
-ggplot(data = activitiesPerDay, aes(x=date, y=steps, fill=origDataset)) + 
-    geom_bar(stat = "identity", position = "dodge")
-```
-
-![plot of chunk unnamed-chunk-19](./PA1_template_files/figure-html/unnamed-chunk-19.png) 
-
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
@@ -309,7 +337,7 @@ ggplot(data = avgStepsPerIntervalAndDay, aes(x = interval, y = steps)) +
     geom_line() + facet_wrap(~ day, ncol = 1)
 ```
 
-![plot of chunk unnamed-chunk-22](./PA1_template_files/figure-html/unnamed-chunk-22.png) 
+![plot of chunk unnamed-chunk-25](./PA1_template_files/figure-html/unnamed-chunk-25.png) 
 As can be seen from the graph, the activity tends to start later on a weekend day and does not reach the maximum of a weekday day. However, on average more steps in total are taken on a weekend day on average:
 
 
